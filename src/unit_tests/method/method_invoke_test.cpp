@@ -1,0 +1,204 @@
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
+*                                                                                   *
+*   This file is part of RTTR (Run Time Type Reflection)                            *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining           *
+*   a copy of this software and associated documentation files (the "Software"),    *
+*   to deal in the Software without restriction, including without limitation       *
+*   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
+*   and/or sell copies of the Software, and to permit persons to whom the           *
+*   Software is furnished to do so, subject to the following conditions:            *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#include <rttr/registration>
+#include <catch/catch.hpp>
+
+using namespace rttr;
+
+
+struct method_invoke_test {
+    method_invoke_test() { for (auto &item: m_invoked) { item = false; } }
+    void func_0() { m_invoked[0] = true; }
+    void func_1(int) { m_invoked[1] = true; }
+    void func_2(int, int) { m_invoked[2] = true; }
+    void func_3(int, int, int) { m_invoked[3] = true; }
+    void func_4(int, int, int, int) { m_invoked[4] = true; }
+    void func_5(int, int, int, int, int) { m_invoked[5] = true; }
+    void func_6(int, int, int, int, int, int) { m_invoked[6] = true; }
+    void func_7(int, int, int, int, int, int, int) { m_invoked[7] = true; }
+
+    std::array<bool, 8> m_invoked;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+///
+std::function<int(int)> func_8([](int value) { return value; });
+auto func_9 = [](int value) { return value; };
+
+RTTR_REGISTRATION {
+    registration::do_class < ^^method_invoke_test > ("method_invoke_test");
+    registration::do_method < ^^func_8 > ("func_8");
+    registration::do_method < ^^func_9 > ("func_9");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE (
+"method - invoke"
+,
+"[method]"
+)
+{
+    type t = type::get<method_invoke_test>();
+    const auto meth_range = t.get_methods();
+    std::vector<method> meth_list(meth_range.cbegin(), meth_range.cend());
+    REQUIRE(meth_list.size() >= 8);
+    method_invoke_test obj;
+    CHECK(meth_list[0].invoke(obj).is_valid() == true);
+    CHECK(obj.m_invoked[0] == true);
+
+    CHECK(meth_list[1].invoke(obj, 1).is_valid() == true);
+    CHECK(obj.m_invoked[1] == true);
+
+    CHECK(meth_list[2].invoke(obj, 1, 2).is_valid() == true);
+    CHECK(obj.m_invoked[2] == true);
+
+    CHECK(meth_list[3].invoke(obj, 1, 2, 3).is_valid() == true);
+    CHECK(obj.m_invoked[3] == true);
+
+    CHECK(meth_list[4].invoke(obj, 1, 2, 3, 4).is_valid() == true);
+    CHECK(obj.m_invoked[4] == true);
+
+    CHECK(meth_list[5].invoke(obj, 1, 2, 3, 4, 5).is_valid() == true);
+    CHECK(obj.m_invoked[5] == true);
+
+    CHECK(meth_list[6].invoke(obj, 1, 2, 3, 4, 5, 6).is_valid() == true);
+    CHECK(obj.m_invoked[6] == true);
+
+    CHECK(meth_list[7].invoke_variadic(obj, {1, 2, 3, 4, 5, 6, 7}).is_valid() == true);
+    CHECK(obj.m_invoked[7] == true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE (
+"method - invoke - NEGATIVE - invalid method"
+,
+"[method]"
+)
+{
+    method meth = type::get_by_name("").get_method("");
+    REQUIRE(meth.is_valid() == false);
+
+    method_invoke_test obj;
+    CHECK(meth.invoke(obj).is_valid() == false);
+    CHECK(obj.m_invoked[0] == false);
+
+    CHECK(meth.invoke(obj, 1).is_valid() == false);
+    CHECK(obj.m_invoked[1] == false);
+
+    CHECK(meth.invoke(obj, 1, 2).is_valid() == false);
+    CHECK(obj.m_invoked[2] == false);
+
+    CHECK(meth.invoke(obj, 1, 2, 3).is_valid() == false);
+    CHECK(obj.m_invoked[3] == false);
+
+    CHECK(meth.invoke(obj, 1, 2, 3, 4).is_valid() == false);
+    CHECK(obj.m_invoked[4] == false);
+
+    CHECK(meth.invoke(obj, 1, 2, 3, 4, 5).is_valid() == false);
+    CHECK(obj.m_invoked[5] == false);
+
+    CHECK(meth.invoke(obj, 1, 2, 3, 4, 5, 6).is_valid() == false);
+    CHECK(obj.m_invoked[6] == false);
+
+    CHECK(meth.invoke_variadic(obj, {1, 2, 3, 4, 5, 6, 7}).is_valid() == false);
+    CHECK(obj.m_invoked[7] == false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE (
+"method - invoke - NEGATIVE - invalid arg count"
+,
+"[method]"
+)
+{
+    type t = type::get<method_invoke_test>();
+    const auto meth_range = t.get_methods();
+    std::vector<method> meth_list(meth_range.cbegin(), meth_range.cend());
+    REQUIRE(meth_list.size() >= 8);
+
+    method_invoke_test obj;
+    CHECK(meth_list[0].invoke(obj, 1).is_valid() == false);
+    CHECK(obj.m_invoked[0] == false);
+
+    CHECK(meth_list[1].invoke(obj).is_valid() == false);
+    CHECK(obj.m_invoked[1] == false);
+
+    CHECK(meth_list[2].invoke(obj, 1).is_valid() == false);
+    CHECK(obj.m_invoked[2] == false);
+
+    CHECK(meth_list[3].invoke(obj, 1, 2).is_valid() == false);
+    CHECK(obj.m_invoked[3] == false);
+
+    CHECK(meth_list[4].invoke(obj, 1, 2, 3).is_valid() == false);
+    CHECK(obj.m_invoked[4] == false);
+
+    CHECK(meth_list[5].invoke(obj, 1, 2, 3, 4).is_valid() == false);
+    CHECK(obj.m_invoked[5] == false);
+
+    CHECK(meth_list[6].invoke(obj, 1, 2, 3, 4, 5).is_valid() == false);
+    CHECK(obj.m_invoked[6] == false);
+
+    CHECK(meth_list[7].invoke_variadic(obj, {1, 2, 3, 4, 5, 6}).is_valid() == false);
+    CHECK(obj.m_invoked[7] == false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE (
+"method - invoke - std::function"
+,
+"[method]"
+)
+{
+    auto t = type::get_global_method("func_8");
+    variant var = t.invoke(instance(), {42});
+    REQUIRE(var.is_type<int>() == true);
+    CHECK(var.get_value<int>() == 42);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE (
+"method - invoke - lambda"
+,
+"[method]"
+)
+{
+    auto t = type::get_global_method("func_9");
+    auto param_infos = t.get_parameter_infos();
+    CHECK(param_infos.size() == 1);
+    variant var = t.invoke(instance(), {23});
+    REQUIRE(var.is_type<int>() == true);
+    CHECK(var.get_value<int>() == 23);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////

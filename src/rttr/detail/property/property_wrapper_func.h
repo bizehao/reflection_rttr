@@ -34,20 +34,13 @@
 template<std::meta::info Getter, std::meta::info Setter, prop_policy GetPolicy, prop_policy
     SetPolicy>
 class property_wrapper_function : public property_wrapper_base, public metadata_handler {
-    using return_type = [:is_lambda(Getter)
-                              ? std::meta::return_type_of(get_lambda_fun(Getter))
-                              : std::meta::return_type_of(Getter):];
+    using return_type =  [: std::meta::return_type_of(callable_fun<Getter>()):];
     using arg_type = [:[]() {
         if (Setter == ^^void) {
             return ^^void;
         }
         else {
-            if (is_lambda(Getter)) {
-                return std::meta::type_of(std::meta::parameters_of(get_lambda_fun(Setter))[0]);
-            }
-            else {
-                return std::meta::type_of(std::meta::parameters_of(Setter)[0]);
-            }
+            return std::meta::type_of(std::meta::parameters_of(callable_fun<Setter>())[0]);
         }
     }():];
 
@@ -55,8 +48,8 @@ public:
     property_wrapper_function(std::string_view name, std::vector<metadata> meta_datas) RTTR_NOEXCEPT
         : property_wrapper_base(name, type::get<invalid_type>()),
           metadata_handler{std::move(meta_datas)} {
-        constexpr auto t_Getter = is_lambda(Getter) ? get_lambda_fun(Getter) : Getter;
-        constexpr auto t_Setter = is_lambda(Setter) ? get_lambda_fun(Setter) : Setter;
+        constexpr auto t_Getter = callable_fun<Getter>();
+        constexpr auto t_Setter = callable_fun<Setter>();
         static_assert(std::meta::parameters_of(t_Getter).empty(),
                       "Invalid number of argument, please provide a getter-function without arguments.")
                 ;

@@ -51,18 +51,9 @@ namespace rttr {
         template<std::meta::info Fun, method_policy op>
         class method_wrapper : public method_wrapper_base, public metadata_handler {
             using Declaring_Type = [:std::meta::is_class_member(Fun) ? std::meta::parent_of(Fun) : ^^invalid_type:];
-            using Return_Type = [:is_lambda(Fun)
-                                      ? std::meta::return_type_of(get_lambda_fun(Fun))
-                                      : std::meta::return_type_of(Fun):];
+            using Return_Type = [:std::meta::return_type_of(callable_fun<Fun>()):];
 
-            static constexpr auto params = []() {
-                if (is_lambda(Fun)) {
-                    return std::define_static_array(std::meta::parameters_of(get_lambda_fun(Fun)));
-                }
-                else {
-                    return std::define_static_array(std::meta::parameters_of(Fun));
-                }
-            }();
+            static constexpr auto params = std::define_static_array(std::meta::parameters_of(callable_fun<Fun>()));
             static constexpr auto default_args_num = std::ranges::count_if(params, [](std::meta::info const &i) {
                 return std::meta::has_default_argument(i);
             });

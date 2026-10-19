@@ -427,37 +427,35 @@ RTTR_FORCE_INLINE void *as_void_ptr(const T &obj) {
         static RTTR_INLINE T &identity_func(T &func) { return func; }
 
         /////////////////////////////////////////////////////////////////////////////////////////
-
-        static consteval bool is_lambda(std::meta::info v) {
-            if (std::meta::is_variable(v)) {
-                auto t = std::meta::type_of(v);
-                if (std::meta::is_class_type(t)) {
-                    auto r = std::meta::members_of(t, std::meta::access_context::current())
-                             | std::views::filter(std::meta::is_operator_function)
-                             | std::views::filter([](const std::meta::info InOperatorInfo) {
-                                     return std::meta::operator_of(InOperatorInfo) ==
-                                            std::meta::operators::op_parentheses;
-                                 }
-                             )
-                             | std::ranges::to<std::vector<std::meta::info> >();
-                    return r.size() == 1;
-                }
+        template<std::meta::info V>
+        static consteval bool is_lambda() {
+            if constexpr(std::meta::is_variable(V)) {
+                using T = [:std::meta::type_of(V):];
+                return requires { &T::operator(); };
             }
             return false;
         }
 
-        static consteval std::meta::info get_lambda_fun(std::meta::info v) {
-            if (!is_lambda(v)) {
+        template<std::meta::info V>
+        static consteval std::meta::info get_lambda_fun() {
+            if constexpr(!is_lambda<V>()) {
                 throw std::logic_error("get_lambda is not a lambda object");
             }
-            auto t = std::meta::type_of(v);
-            auto r = std::meta::members_of(t, std::meta::access_context::current())
-                     | std::views::filter(std::meta::is_operator_function)
-                     | std::views::filter([](const std::meta::info InOperatorInfo) {
-                             return std::meta::operator_of(InOperatorInfo) == std::meta::operators::op_parentheses;
-                         }
-                     );
-            return r.front();
+            else
+            {
+                using T = [:std::meta::type_of(V):];
+                return ^^T::operator();
+            }
+        }
+
+        template<std::meta::info V>
+        static consteval std::meta::info callable_fun() {
+            if constexpr (is_lambda<V>()) {
+                return get_lambda_fun<V>();
+            }
+            else {
+                return V;
+            }
         }
 
         //确保原生数组类型转换为span

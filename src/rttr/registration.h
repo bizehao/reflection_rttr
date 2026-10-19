@@ -41,6 +41,21 @@
 
 namespace rttr {
     namespace detail {
+    // GCC 16 cannot reflect the members of a lambda closure type, so
+    // function-pointer overloads are forwarded through a named function.
+    template<auto Fun, class... Args>
+    inline auto overload_invoke(Args... args)
+        -> typename function_traits<decltype(Fun)>::return_type {
+        return Fun(std::forward<Args>(args)...);
+    }
+
+    template<auto Fun, class Tuple>
+    struct overload_invoker;
+
+    template<auto Fun, class... Args>
+    struct overload_invoker<Fun, std::tuple<Args...> > {
+        static constexpr auto invoke = ^^overload_invoke<Fun, Args...>;
+    };
     }
 
     /*!
@@ -317,7 +332,7 @@ namespace rttr {
      */
         //global var; static class member; non-static class member
         template<std::meta::info Var, policy::prop PolicyOp = policy::prop::op_default>
-            requires (!detail::is_lambda(Var) && (
+            requires (!detail::is_lambda<Var>() && (
                           std::meta::is_variable(Var) || std::meta::is_nonstatic_data_member(Var)))
         static void do_property(std::string_view name = get_full_identifier(Var)) {
             using T = [:std::meta::is_class_member(Var)
@@ -354,7 +369,7 @@ namespace rttr {
      * \return A \ref bind object, in order to chain more calls.
      */
         template<std::meta::info Var, policy::prop PolicyOp = policy::prop::op_default>
-            requires (!detail::is_lambda(Var) && (
+            requires (!detail::is_lambda<Var>() && (
                           std::meta::is_variable(Var) || std::meta::is_nonstatic_data_member(Var)))
         static void do_property_readonly(std::string_view name = get_full_identifier(Var)) {
             using T = [:std::meta::is_class_member(Var)
@@ -384,8 +399,8 @@ namespace rttr {
      */
         template<std::meta::info GetVar, std::meta::info SetVar, policy::prop PolicyOp =
                 policy::prop::op_default>
-            requires ((check_get_set_fun(GetVar) || detail::is_lambda(GetVar)) && (
-                          check_get_set_fun(SetVar) || detail::is_lambda(SetVar)))
+            requires ((check_get_set_fun(GetVar) || detail::is_lambda<GetVar>()) && (
+                          check_get_set_fun(SetVar) || detail::is_lambda<SetVar>()))
         static void do_property(std::string_view name) {
             constexpr auto pair = policy::transform(PolicyOp);
 
@@ -399,7 +414,7 @@ namespace rttr {
         }
 
         template<std::meta::info GetVar, policy::prop PolicyOp = policy::prop::op_default>
-            requires (check_get_set_fun(GetVar) || detail::is_lambda(GetVar))
+            requires (check_get_set_fun(GetVar) || detail::is_lambda<GetVar>())
         static void do_property_readonly(std::string_view name) {
             constexpr auto pair = policy::transform(PolicyOp, true);
             detail::store_item<detail::invalid_type>(
@@ -421,7 +436,7 @@ namespace rttr {
      * \return A \ref bind object, in order to chain more calls.
      */
         template<std::meta::info Fun, policy::method PolicyOp = policy::method::op_default>
-            requires (std::meta::is_function(Fun) || detail::is_lambda(Fun))
+            requires (std::meta::is_function(Fun) || detail::is_lambda<Fun>())
         static void do_method(std::string_view name = get_full_identifier(Fun)) {
             constexpr auto p = policy::transform(PolicyOp);
             using T = [:std::meta::is_class_member(Fun)
@@ -438,14 +453,17 @@ namespace rttr {
                                        std::in_place_type_t<MetaT> = std::in_place_type_t<MetaT>{}) {
             constexpr auto p = policy::transform(PolicyOp);
             using Cur_Fun = detail::function_traits<decltype(Fun)>;
-            static auto fun_lambda_wrapper = []<std::size_t... Is>(std::index_sequence<Is...>) static {
-                return [](std::tuple_element_t<Is, typename Cur_Fun::arg_types>... args) {
-                    return Fun(std::forward<std::tuple_element_t<Is, typename Cur_Fun::arg_types> >(args)...);
-                };
-            }(std::make_index_sequence<Cur_Fun::arg_count>{});
+            using invoker = detail::overload_invoker<Fun, typename Cur_Fun::arg_types>;
+            constexpr auto invoker_fun = invoker::invoke;
+
+            // static auto fun_lambda_wrapper = []<std::size_t... Is>(std::index_sequence<Is...>) static {
+            //     return [](std::tuple_element_t<Is, typename Cur_Fun::arg_types>... args) {
+            //         return Fun(std::forward<std::tuple_element_t<Is, typename Cur_Fun::arg_types> >(args)...);
+            //     };
+            // }(std::make_index_sequence<Cur_Fun::arg_count>{});
 
             detail::store_item<detail::invalid_type>(
-                std::make_unique<detail::method_wrapper<^^fun_lambda_wrapper, p> >(
+                std::make_unique<detail::method_wrapper<invoker_fun, p> >(
                     name,
                     get_target_metadata<^^MetaT>()));
         }

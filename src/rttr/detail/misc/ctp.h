@@ -58,15 +58,14 @@ namespace ctp {
     // The target type for a given T. For structural types, the target is always
     // T in order to be consistent with regular C++20 template parameters.
     //using target = std::conditional_t<std::is_structural_v<T>, T, impl::custom_target<T> >;
+    //[:is_structural_type(^^T) ? ^^T : substitute(^^impl::custom_target, {^^T}):];
     template<class T>
-    using target = [:is_structural_type(^^T) ? ^^T : substitute(^^impl::custom_target, {^^T}):];
+    using target = std::conditional_t<std::is_structural_v<T>, T, impl::custom_target<T> >;
 
     // For those cases where references need to be preserved,
     // target_or_ref<T&> is T& but target_or_ref<T> is target<T>
     template<class T>
-    using target_or_ref = [:std::meta::is_lvalue_reference_type(^^T)
-                                ? ^^T
-                                : substitute(^^target, {^^T}):];
+    using target_or_ref = std::conditional_t<std::is_lvalue_reference_v<T>, T, target<T> >;
 
 
     namespace impl {
